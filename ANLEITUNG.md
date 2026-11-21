@@ -50,7 +50,7 @@ Der Bot prüft deine Produkte auf **mediamarkt.at** und pingt dich im Discord-Ch
    DISCORD_TOKEN=dein-token-aus-schritt-1
    CHANNEL_ID=deine-kanal-id
    PING_USER_ID=deine-benutzer-id
-   UPDATE_REPO=deinname/mediamarkt-bot
+   UPDATE_REPO=hadeseu/mediamarkt-bot
    CHECK_SECONDS=10
    MIN_GAP_SECONDS=3
    ALLOW_MARKETPLACE=false
