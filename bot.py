@@ -107,9 +107,31 @@ class Bot(discord.Client):
             log.info("UPDATE_REPO nicht gesetzt – automatische Updates sind aus")
 
     async def on_ready(self):
-        if getattr(self, "_synced", False):  # on_ready kommt nach jedem Reconnect
+        if getattr(self, "_setup_running", False):  # on_ready kommt nach jedem Reconnect
             return
-        self._synced = True
+        self._setup_running = True
+        while True:
+            try:
+                await self.setup_channel()
+                return
+            except (discord.Forbidden, discord.NotFound):
+                log.error(
+                    "Kann den Channel %s nicht sehen! Entweder ist CHANNEL_ID falsch "
+                    "(Rechtsklick auf den Channel → Kanal-ID kopieren) oder der Bot hat "
+                    "dort keine Rechte (Kanal bearbeiten → Berechtigungen → Bot hinzufügen). "
+                    "Neuer Versuch in 60 Sekunden.", CHANNEL_ID,
+                )
+                for g in self.guilds:
+                    chans = ", ".join(
+                        f"#{c.name}={c.id}" for c in g.text_channels
+                        if c.permissions_for(g.me).send_messages
+                    )
+                    log.error("Server '%s' – Channels, in die ich schreiben darf: %s", g.name, chans or "keine")
+                if not self.guilds:
+                    log.error("Der Bot ist auf keinem Server! Lade ihn zuerst ein (OAuth2 → URL Generator).")
+            await asyncio.sleep(60)
+
+    async def setup_channel(self):
         channel = self.get_channel(CHANNEL_ID) or await self.fetch_channel(CHANNEL_ID)
         guild = channel.guild
         self.tree.copy_global_to(guild=guild)
