@@ -21,7 +21,10 @@ VERSION_FILE = BASE / "data" / "version.txt"
 JUST_UPDATED = BASE / "data" / "just_updated.txt"
 BRANCH = "main"
 KEEP = {".env"}            # wird nie überschrieben
-KEEP_DIRS = {"data", ".local", ".venv"}
+KEEP_DIRS = {"data", ".local", ".venv", ".git"}
+# Auf Handys (Termux) gibt es keine fertigen Pakete – reine Python-Version nehmen
+NO_EXT = ("AIOHTTP_NO_EXTENSIONS", "MULTIDICT_NO_EXTENSIONS", "YARL_NO_EXTENSIONS",
+          "FROZENLIST_NO_EXTENSIONS", "PROPCACHE_NO_EXTENSIONS")
 
 
 def current_version() -> str | None:
@@ -60,12 +63,11 @@ async def apply(session: aiohttp.ClientSession, repo: str, sha: str) -> None:
 
     if (BASE / "requirements.txt").read_bytes() != old_req:
         log.info("requirements.txt geändert – installiere Pakete")
-        await asyncio.to_thread(
-            subprocess.run,
-            [sys.executable, "-m", "pip", "install", "-q", "-U", "--prefix", ".local",
-             "-r", "requirements.txt"],
-            cwd=BASE, check=False,
-        )
+        cmd = [sys.executable, "-m", "pip", "install", "-q", "-U", "-r", "requirements.txt"]
+        if (BASE / ".local").is_dir():  # Hoster wie Wispbyte installieren nach ./.local
+            cmd[4:4] = ["--prefix", ".local"]
+        env = {**os.environ, **{k: "1" for k in NO_EXT}}
+        await asyncio.to_thread(subprocess.run, cmd, cwd=BASE, check=False, env=env)
 
     VERSION_FILE.parent.mkdir(exist_ok=True)
     VERSION_FILE.write_text(sha)

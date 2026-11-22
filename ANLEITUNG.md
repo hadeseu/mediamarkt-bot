@@ -79,3 +79,23 @@ Die Produkte werden reihum in gleichen Abständen geprüft, höchstens 1 Anfrage
 Bis 3 Produkte: jedes alle 10 Sek. Mehr Produkte: pro Produkt etwas langsamer, die Last bleibt gleich.
 Blockt MediaMarkt trotzdem, macht der Bot 1 Minute Pause und wird langsamer; läuft es wieder
 stabil, wird er schrittweise wieder schneller.
+
+---
+
+## Alternative: Bot auf einem Android-Handy (Termux)
+
+Nötig, wenn MediaMarkt den Hoster sperrt (`HTTP 403`). Vom Internet zu Hause wird nicht gesperrt.
+
+1. **F-Droid** installieren: https://f-droid.org → über F-Droid **Termux** und **Termux:Boot** installieren
+   (nicht aus dem Play Store).
+2. **Termux:Boot** einmal öffnen (damit der Autostart aktiv wird).
+3. Android-Einstellungen → Apps → **Termux** → Akku → **Nicht optimieren / Uneingeschränkt**.
+4. **Termux** öffnen und einfügen:
+   ```bash
+   pkg install -y curl && curl -fsSL https://raw.githubusercontent.com/hadeseu/mediamarkt-bot/main/termux/install.sh | bash
+   ```
+5. Nach Token, Channel-ID und User-ID(s) gefragt → einfügen. Fertig. ✅
+6. Den Bot bei Wispbyte **stoppen** (sonst läuft er doppelt).
+
+Kurzbefehle in Termux: `bot-log` (Log ansehen), `bot-stop`, `bot-start`.
+Handy am Ladekabel und im WLAN lassen.
