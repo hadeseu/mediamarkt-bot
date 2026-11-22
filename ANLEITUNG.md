@@ -56,6 +56,7 @@ Der Bot prüft deine Produkte auf **mediamarkt.at** und pingt dich im Discord-Ch
    ALLOW_MARKETPLACE=false
    ```
    → **Save**.
+   Mehrere Leute pingen: IDs mit Komma trennen, z. B. `PING_USER_ID=111111111111111111,222222222222222222`
 4. **Startup** → bei der Startdatei (heißt z. B. *App py file* / *Startup File*) `bot.py` eintragen.
 5. **Console** → **Start**. Nach ein paar Sekunden sollte dort stehen:
    `Eingeloggt als MediaMarkt Bot#…`

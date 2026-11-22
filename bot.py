@@ -32,7 +32,11 @@ load_env(BASE / ".env")
 
 TOKEN = os.environ["DISCORD_TOKEN"]
 CHANNEL_ID = int(os.environ["CHANNEL_ID"])
-PING_USER_ID = os.environ.get("PING_USER_ID", "").strip()
+# Eine oder mehrere User-IDs, mit Komma getrennt: 111,222
+PING_USER_IDS = [
+    p.strip() for p in os.environ.get("PING_USER_ID", "").replace(";", ",").split(",")
+    if p.strip().isdigit()
+]
 # Ziel: jedes Produkt alle CHECK_SECONDS prüfen ...
 CHECK_SECONDS = max(10.0, float(os.environ.get("CHECK_SECONDS", "10")))
 # ... aber nie mehr als eine Anfrage pro MIN_GAP Sekunden an MediaMarkt
@@ -179,7 +183,7 @@ class Bot(discord.Client):
         if channel is None:
             return
         if is_hit(r) and not was_hit:
-            mention = f"<@{PING_USER_ID}> " if PING_USER_ID else ""
+            mention = "".join(f"<@{uid}> " for uid in PING_USER_IDS)
             await channel.send(
                 f"{mention}🚨 **Jetzt verfügbar!** {r.url}",
                 embed=make_embed(r, "🟢 Jetzt bestellbar!"),
