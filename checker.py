@@ -31,7 +31,7 @@ SHOP_NAMES = {
     "thalia.at": "Thalia AT", "thalia.de": "Thalia DE",
     "hartlauer.at": "Hartlauer", "otto.at": "OTTO AT", "otto.de": "OTTO DE",
     "universal.at": "Universal", "conrad.at": "Conrad AT", "cyberport.at": "Cyberport AT",
-    "alza.at": "Alza AT", "e-tec.at": "e-tec", "games-island.eu": "Games Island",
+    "alza.at": "Alza AT", "boozt.com": "Boozt", "e-tec.at": "e-tec", "games-island.eu": "Games Island",
     "gamestop.de": "GameStop DE", "lidl.at": "Lidl AT",
 }
 

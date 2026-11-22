@@ -15,7 +15,7 @@ selbst von GitHub.
 | `/shops` | Welche Shops funktionieren |
 
 ## Welche Shops?
-- **Funktioniert sicher:** MediaMarkt AT (unterscheidet MediaMarkt vs. teure Marktplatz-Händler), Thalia
+- **Funktioniert sicher:** MediaMarkt AT (unterscheidet MediaMarkt vs. teure Marktplatz-Händler), Alza, Boozt, Thalia
 - **Sollte gehen:** Saturn/MediaMarkt DE, kleine Kartenshops auf Shopify und alle Shops, die
   Google-Produktdaten (schema.org) in die Seite schreiben. Einfach `/check` mit dem Link probieren.
 - **Geht nicht (Bot-Schutz):** Pagro, Libro, Müller, Smyths, Conrad, Galaxus, Interspar, Kaufland, Amazon

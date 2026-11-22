@@ -314,7 +314,7 @@ async def shops_cmd(interaction: discord.Interaction):
         title="Shops",
         description=(
             "Du kannst **jeden Shop-Link** probieren – der Bot sagt dir sofort, ob es klappt.\n\n"
-            "✅ **Funktioniert sicher:** MediaMarkt AT, Thalia\n"
+            "✅ **Funktioniert sicher:** MediaMarkt AT, Alza, Boozt, Thalia\n"
             "🟡 **Sollte gehen:** Saturn/MediaMarkt DE, kleine Kartenshops (Shopify) und andere "
             "Shops, die Google-Produktdaten in die Seite schreiben – einfach `/check` probieren.\n\n"
             "⛔ **Blocken Bots:** Pagro, Libro, Müller, Smyths, Conrad, Galaxus, Interspar, "
