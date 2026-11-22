@@ -15,6 +15,9 @@ command -v termux-wake-lock >/dev/null && termux-wake-lock
 cd "$APP"
 nohup bash -c '
   while true; do
+    # Vor jedem Start neueste Version holen – so repariert sich der Bot auch,
+    # falls eine Version beim Starten abstürzt.
+    git fetch -q origin && git reset -q --hard origin/main
     python bot.py
     echo "$(date) Bot beendet – Neustart in 10 Sekunden"
     sleep 10

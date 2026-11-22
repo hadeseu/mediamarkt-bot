@@ -1,16 +1,27 @@
-# MediaMarkt.at Bot – Schritt für Schritt
+# Verfügbarkeits-Bot – Schritt für Schritt
 
-Der Bot prüft deine Produkte auf **mediamarkt.at** und pingt dich im Discord-Channel, sobald eins
-**bei MediaMarkt selbst** bestellbar ist. Updates holt er sich jede Minute selbst von GitHub.
+Der Bot prüft deine Produkte in Online-Shops und pingt dich im Discord-Channel, sobald eins
+bestellbar ist. Einfach den Produkt-Link mit `/add` reinwerfen. Updates holt er sich jede Minute
+selbst von GitHub.
 
 ## Befehle in Discord
 
 | Befehl | Was er macht |
 |---|---|
-| `/add <Link>` | Produkt überwachen |
+| `/add <Link>` | Produkt überwachen (Link aus irgendeinem Shop) |
 | `/check <Link>` | Sofort nachschauen, ob verfügbar |
 | `/list` | Alle überwachten Produkte |
 | `/remove <Nummer>` | Produkt entfernen (Nummer aus `/list`) |
+| `/shops` | Welche Shops funktionieren |
+
+## Welche Shops?
+- **Funktioniert sicher:** MediaMarkt AT (unterscheidet MediaMarkt vs. teure Marktplatz-Händler), Thalia
+- **Sollte gehen:** Saturn/MediaMarkt DE, kleine Kartenshops auf Shopify und alle Shops, die
+  Google-Produktdaten (schema.org) in die Seite schreiben. Einfach `/check` mit dem Link probieren.
+- **Geht nicht (Bot-Schutz):** Pagro, Libro, Müller, Smyths, Conrad, Galaxus, Interspar, Kaufland, Amazon
+
+Jeder Shop wird **für sich** gleichmäßig geprüft (max. 1 Anfrage alle 3 Sek. pro Shop),
+ein Shop bremst die anderen also nicht aus.
 
 ---
 

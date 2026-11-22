@@ -1,4 +1,4 @@
-"""Discord-Bot: meldet, wenn Produkte im MediaMarkt.at Online-Shop bestellbar werden."""
+"""Discord-Bot: meldet, wenn Produkte in Online-Shops (MediaMarkt, Thalia, Shopify-Shops …) bestellbar werden."""
 
 import asyncio
 import json
@@ -39,7 +39,7 @@ PING_USER_IDS = [
 ]
 # Ziel: jedes Produkt alle CHECK_SECONDS prüfen ...
 CHECK_SECONDS = max(10.0, float(os.environ.get("CHECK_SECONDS", "10")))
-# ... aber nie mehr als eine Anfrage pro MIN_GAP Sekunden an MediaMarkt
+# ... aber nie mehr als eine Anfrage pro MIN_GAP Sekunden an denselben Shop
 MIN_GAP = max(2.0, float(os.environ.get("MIN_GAP_SECONDS", "3")))
 ALLOW_MARKETPLACE = os.environ.get("ALLOW_MARKETPLACE", "false").lower() == "true"
 # GitHub-Repo für automatische Updates, z. B. "deinname/mediamarkt-bot" (leer = aus)
@@ -80,7 +80,7 @@ def make_embed(r: checker.Result, title: str | None = None) -> discord.Embed:
         e.add_field(name="Preis", value=f"{r.price:.2f} €".replace(".", ","), inline=True)
     if r.marketplace and r.seller:
         e.add_field(name="Verkäufer", value=r.seller, inline=True)
-    e.set_footer(text="MediaMarkt.at")
+    e.set_footer(text=r.shop)
     return e
 
 
@@ -93,8 +93,9 @@ class Bot(discord.Client):
         self.products = load_products()
         self.http_session: aiohttp.ClientSession | None = None
         self.lock = asyncio.Lock()
-        self.slow = 1.0        # Bremsfaktor: steigt bei Blockierung, sinkt langsam wieder
-        self.ok_streak = 0     # erfolgreiche Anfragen seit der letzten Blockierung
+        self.slow: dict[str, float] = {}     # Bremsfaktor pro Shop (steigt bei Blockierung)
+        self.ok_streak: dict[str, int] = {}  # erfolgreiche Anfragen seit der letzten Blockierung
+        self.workers: dict[str, asyncio.Task] = {}
         self.scheduler_task: asyncio.Task | None = None
         self.update_task: asyncio.Task | None = None
 
@@ -144,7 +145,7 @@ class Bot(discord.Client):
             await channel.send(f"🔄 Update installiert (Version `{sha[:7]}`) – läuft wieder.")
 
     async def close(self):
-        for task in (self.scheduler_task, self.update_task):
+        for task in (self.scheduler_task, self.update_task, *self.workers.values()):
             if task:
                 task.cancel()
         if self.http_session:
@@ -152,39 +153,50 @@ class Bot(discord.Client):
         await super().close()
 
     async def scheduler(self):
-        """Prüft die Produkte reihum in gleichmäßigen Abständen.
-
-        Abstand zwischen zwei Anfragen = CHECK_SECONDS / Anzahl Produkte, aber nie
-        weniger als MIN_GAP. So bleibt die Last auf MediaMarkt gleich, egal wie viele
-        Produkte überwacht werden. Bei einer Blockierung wird automatisch gebremst,
-        danach langsam wieder beschleunigt.
-        """
+        """Startet für jeden Shop einen eigenen Prüf-Takt (und beendet ihn, wenn leer)."""
         await self.wait_until_ready()
+        while not self.is_closed():
+            async with self.lock:
+                hosts = {checker.host_of(u) for u in self.products}
+            for host in hosts:
+                task = self.workers.get(host)
+                if task is None or task.done():
+                    self.workers[host] = asyncio.create_task(self.shop_worker(host))
+            await asyncio.sleep(5)
+
+    async def shop_worker(self, host: str):
+        """Prüft die Produkte EINES Shops reihum in gleichmäßigen Abständen.
+
+        Abstand = CHECK_SECONDS / Anzahl Produkte dieses Shops, aber nie weniger als
+        MIN_GAP. So bekommt jeder Shop gleichmäßig wenig Last, und ein Shop bremst die
+        anderen nicht aus. Bei einer Blockierung wird nur dieser Shop gebremst.
+        """
         clock = asyncio.get_running_loop().time
         idx = 0
         while not self.is_closed():
             async with self.lock:
-                urls = list(self.products)
+                urls = [u for u in self.products if checker.host_of(u) == host]
             if not urls:
-                await asyncio.sleep(5)
-                continue
+                return
             idx %= len(urls)
             url = urls[idx]
             idx += 1
-            gap = max(MIN_GAP, CHECK_SECONDS / len(urls)) * self.slow
+            slow = self.slow.get(host, 1.0)
+            gap = max(MIN_GAP, CHECK_SECONDS / len(urls)) * slow
             started = clock()
             try:
                 await self.check_one(url)
-                self.ok_streak += 1
-                if self.slow > 1 and self.ok_streak >= 100:
-                    self.slow = max(1.0, self.slow / 1.5)
-                    self.ok_streak = 0
-                    log.info("Läuft stabil – wieder schneller (Faktor %.1f)", self.slow)
+                self.ok_streak[host] = self.ok_streak.get(host, 0) + 1
+                if slow > 1 and self.ok_streak[host] >= 100:
+                    self.slow[host] = max(1.0, slow / 1.5)
+                    self.ok_streak[host] = 0
+                    log.info("%s läuft stabil – wieder schneller (Faktor %.1f)", host, self.slow[host])
             except checker.BlockedError as err:
-                self.slow = min(self.slow * 2, 32)
-                self.ok_streak = 0
+                self.slow[host] = min(slow * 2, 32)
+                self.ok_streak[host] = 0
                 pause = max(err.retry_after or 0, 60)
-                log.warning("Geblockt (%s) – %.0f s Pause, danach langsamer (Faktor %.0f)", err, pause, self.slow)
+                log.warning("%s blockt (%s) – %.0f s Pause, danach langsamer (Faktor %.0f)",
+                            host, err, pause, self.slow[host])
                 await asyncio.sleep(pause)
                 continue
             except Exception as err:  # noqa: BLE001
@@ -229,54 +241,87 @@ async def wrong_channel(interaction: discord.Interaction):
     )
 
 
-@bot.tree.command(name="add", description="Produkt zur Überwachung hinzufügen")
-@app_commands.describe(link="Link zur Produktseite auf mediamarkt.at")
+BAD_LINK = "Das ist kein gültiger Link. Kopier den Link direkt von der Produktseite im Shop."
+
+
+async def check_for_user(interaction: discord.Interaction, url: str) -> checker.Result | None:
+    """Prüft einen Link und erklärt Probleme verständlich."""
+    shop = checker.shop_name(url)
+    try:
+        return await checker.check(bot.http_session, url)
+    except checker.BlockedError:
+        await interaction.followup.send(
+            f"⛔ **{shop}** blockt automatische Abfragen (Bot-Schutz). "
+            "Diesen Shop kann der Bot leider nicht überwachen – probier einen anderen Shop."
+        )
+    except ValueError as err:
+        await interaction.followup.send(
+            f"🤷 {err}.\nBei **{shop}** findet der Bot keine Verfügbarkeitsangabe. "
+            "Ist das wirklich der Link zu **einem einzelnen Produkt** (nicht zur Suche/Kategorie)?"
+        )
+    except Exception as err:  # noqa: BLE001
+        await interaction.followup.send(f"Konnte die Seite nicht prüfen: {err}")
+    return None
+
+
+@bot.tree.command(name="add", description="Produkt zur Überwachung hinzufügen (Link aus einem Online-Shop)")
+@app_commands.describe(link="Link zur Produktseite, z. B. von MediaMarkt, Thalia, Hartlauer …")
 async def add_cmd(interaction: discord.Interaction, link: str):
     if not in_bot_channel(interaction):
         return await wrong_channel(interaction)
     url = checker.normalize_url(link)
     if not url:
-        return await interaction.response.send_message(
-            "Das ist kein gültiger MediaMarkt.at-Produktlink.\n"
-            "Beispiel: `https://www.mediamarkt.at/de/product/_....-12345678.html`",
-            ephemeral=True,
-        )
+        return await interaction.response.send_message(BAD_LINK, ephemeral=True)
     if url in bot.products:
         return await interaction.response.send_message("Das Produkt wird schon überwacht.", ephemeral=True)
 
     await interaction.response.defer()
-    try:
-        r = await checker.check(bot.http_session, url)
-    except Exception as err:  # noqa: BLE001
-        return await interaction.followup.send(f"Konnte die Seite nicht prüfen: {err}")
+    r = await check_for_user(interaction, url)
+    if r is None:
+        return
 
     async with bot.lock:
         bot.products[url] = {"name": r.name, "hit": is_hit(r), "status": r.status}
         save_products(bot.products)
+        same_shop = sum(1 for u in bot.products if checker.host_of(u) == checker.host_of(url))
 
     note = (
         "Ist **gerade verfügbar** – schnell sein! 🛒"
         if is_hit(r)
         else "Ich pinge dich, sobald es bestellbar ist (Prüfung alle "
-        f"{max(CHECK_SECONDS, MIN_GAP * len(bot.products)):g} Sek.)."
+        f"{max(CHECK_SECONDS, MIN_GAP * same_shop):g} Sek.)."
     )
     await interaction.followup.send(f"✅ Hinzugefügt. {note}", embed=make_embed(r))
 
 
 @bot.tree.command(name="check", description="Sofort prüfen, ob ein Produkt verfügbar ist")
-@app_commands.describe(link="Link zur Produktseite auf mediamarkt.at")
+@app_commands.describe(link="Link zur Produktseite in einem Online-Shop")
 async def check_cmd(interaction: discord.Interaction, link: str):
     if not in_bot_channel(interaction):
         return await wrong_channel(interaction)
     url = checker.normalize_url(link)
     if not url:
-        return await interaction.response.send_message("Das ist kein gültiger MediaMarkt.at-Produktlink.", ephemeral=True)
+        return await interaction.response.send_message(BAD_LINK, ephemeral=True)
     await interaction.response.defer()
-    try:
-        r = await checker.check(bot.http_session, url)
-    except Exception as err:  # noqa: BLE001
-        return await interaction.followup.send(f"Konnte die Seite nicht prüfen: {err}")
-    await interaction.followup.send(embed=make_embed(r))
+    r = await check_for_user(interaction, url)
+    if r:
+        await interaction.followup.send(embed=make_embed(r))
+
+
+@bot.tree.command(name="shops", description="Welche Shops funktionieren?")
+async def shops_cmd(interaction: discord.Interaction):
+    e = discord.Embed(
+        title="Shops",
+        description=(
+            "Du kannst **jeden Shop-Link** probieren – der Bot sagt dir sofort, ob es klappt.\n\n"
+            "✅ **Funktioniert sicher:** MediaMarkt AT, Thalia\n"
+            "🟡 **Sollte gehen:** Saturn/MediaMarkt DE, kleine Kartenshops (Shopify) und andere "
+            "Shops, die Google-Produktdaten in die Seite schreiben – einfach `/check` probieren.\n\n"
+            "⛔ **Blocken Bots:** Pagro, Libro, Müller, Smyths, Conrad, Galaxus, Interspar, "
+            "Kaufland, Amazon"
+        ),
+    )
+    await interaction.response.send_message(embed=e)
 
 
 @bot.tree.command(name="list", description="Alle überwachten Produkte anzeigen")
