@@ -52,6 +52,7 @@ SCHEMA_STATUS = {
 
 MM_STATUS_TEXT = {
     "AVAILABLE": "Online bestellbar",
+    "NO_DELIVERY": "Nicht lieferbar (höchstens Wolt-Sofort-Lieferung oder Abholung)",
     "MP_OFFER": "Nur über Marktplatz-Händler",
     "STORE_ONLY": "Nur im Markt erhältlich",
     "NOT_AVAILABLE": "Nicht verfügbar",
@@ -159,11 +160,28 @@ def parse_mediamarkt(url: str, html: str) -> Result | None:
     if not own and not market:
         return None
 
-    buyable = any(d.get("isAvailableAndBuyable") and d.get("onlineStatus") != "MP_OFFER" for d in own)
-    mp_buyable = any(d.get("isAvailableAndBuyable") for d in market) or any(
+    # Was auf der Seite bei "Lieferung" steht. Nur wenn dort normale Lieferung möglich ist,
+    # kann man es wirklich bestellen (Wolt-Sofort-Lieferung oder Abholung zählen nicht).
+    delivery: dict[str, str | None] = {}
+    dpat = (r'"CofrDeliveryFeature:(?:Media|Saturn):[a-z]{2}:' + pid
+            + r'(\[\d+\])?":\{[^{}]*"delivery":(?:null|\{[^{}]*?"displayStatus":"([A-Z_]+)")')
+    for dm in re.finditer(dpat, html):
+        delivery[dm.group(1) or ""] = dm.group(2)
+    own_ships = delivery.get("") == "AVAILABLE"
+    mp_ships = own_ships or any(v == "AVAILABLE" for k, v in delivery.items() if k)
+
+    buyable_flag = any(d.get("isAvailableAndBuyable") and d.get("onlineStatus") != "MP_OFFER" for d in own)
+    mp_flag = any(d.get("isAvailableAndBuyable") for d in market) or any(
         d.get("isAvailableAndBuyable") and d.get("onlineStatus") == "MP_OFFER" for d in own
     )
-    status = "AVAILABLE" if buyable else ((own or market)[0].get("onlineStatus") or "UNKNOWN")
+    buyable = buyable_flag and own_ships
+    mp_buyable = mp_flag and mp_ships
+    if buyable:
+        status = "AVAILABLE"
+    elif buyable_flag:
+        status = "NO_DELIVERY"
+    else:
+        status = (own or market)[0].get("onlineStatus") or "UNKNOWN"
 
     name = _og_title(html) or "Unbekanntes Produkt"
     name = re.sub(r"\s*\|\s*(MediaMarkt|Saturn)\s*$", "", name)
