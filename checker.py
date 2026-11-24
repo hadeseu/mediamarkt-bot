@@ -179,7 +179,8 @@ def parse_mediamarkt(url: str, html: str) -> Result | None:
     if buyable:
         status = "AVAILABLE"
     elif buyable_flag:
-        status = "NO_DELIVERY"
+        raw = own[0].get("onlineStatus") if own else None
+        status = "STORE_ONLY" if raw == "STORE_ONLY" else "NO_DELIVERY"
     else:
         status = (own or market)[0].get("onlineStatus") or "UNKNOWN"
 
