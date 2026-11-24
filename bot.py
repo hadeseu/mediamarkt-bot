@@ -203,19 +203,19 @@ class Bot(discord.Client):
                 log.warning("Fehler bei %s: %s", url, err)
             await asyncio.sleep(max(0.0, gap - (clock() - started)))
 
-    async def check_one(self, url: str):
+    async def check_one(self, url: str) -> checker.Result:
         r = await checker.check(self.http_session, url)
         async with self.lock:
             entry = self.products.get(url)
             if entry is None:  # inzwischen entfernt
-                return
+                return r
             was_hit = entry.get("hit", False)
             entry.update(name=r.name, hit=is_hit(r), status=r.status)
             save_products(self.products)
 
         channel = self.get_channel(CHANNEL_ID)
         if channel is None:
-            return
+            return r
         if is_hit(r) and not was_hit:
             mention = "".join(f"<@{uid}> " for uid in PING_USER_IDS)
             await channel.send(
@@ -226,6 +226,7 @@ class Bot(discord.Client):
             log.info("VERFÜGBAR: %s", r.name)
         elif was_hit and not is_hit(r):
             await channel.send(embed=make_embed(r, "🔴 Wieder ausverkauft"))
+        return r
 
 
 bot = Bot()
@@ -322,6 +323,49 @@ async def shops_cmd(interaction: discord.Interaction):
         ),
     )
     await interaction.response.send_message(embed=e)
+
+
+@bot.tree.command(name="checkall", description="Alle Produkte aus der Liste jetzt sofort prüfen")
+async def checkall_cmd(interaction: discord.Interaction):
+    if not in_bot_channel(interaction):
+        return await wrong_channel(interaction)
+    async with bot.lock:
+        urls = list(bot.products)
+    if not urls:
+        return await interaction.response.send_message("Noch keine Produkte. Füge eins mit `/add` hinzu.")
+    await interaction.response.defer()
+
+    # Pro Shop nacheinander (mit Abstand), verschiedene Shops gleichzeitig
+    by_shop: dict[str, list[str]] = {}
+    for u in urls:
+        by_shop.setdefault(checker.host_of(u), []).append(u)
+    lines: dict[str, str] = {}
+
+    async def run_shop(shop_urls: list[str]):
+        for i, u in enumerate(shop_urls):
+            if i:
+                await asyncio.sleep(MIN_GAP)
+            name = bot.products.get(u, {}).get("name", u)[:70]
+            try:
+                r = await bot.check_one(u)
+                icon = "🟢" if is_hit(r) else ("🟠" if r.marketplace else "🔴")
+                price = f" – {r.price:.2f} €".replace(".", ",") if r.price is not None else ""
+                lines[u] = f"{icon} [{r.name[:70]}]({u}) – {r.status_text}{price}"
+            except checker.BlockedError:
+                lines[u] = f"⛔ [{name}]({u}) – Shop blockt gerade"
+            except Exception as err:  # noqa: BLE001
+                lines[u] = f"⚠️ [{name}]({u}) – Fehler: {str(err)[:60]}"
+
+    await asyncio.gather(*(run_shop(s) for s in by_shop.values()))
+
+    text = "\n".join(f"`{i}.` {lines[u]}" for i, u in enumerate(urls, 1) if u in lines)
+    hits = sum(1 for u in urls if lines.get(u, "").startswith("🟢"))
+    e = discord.Embed(
+        title=f"Alle Produkte geprüft – {hits} von {len(urls)} verfügbar",
+        description=text[:4000],
+        color=GREEN if hits else RED,
+    )
+    await interaction.followup.send(embed=e)
 
 
 @bot.tree.command(name="list", description="Alle überwachten Produkte anzeigen")

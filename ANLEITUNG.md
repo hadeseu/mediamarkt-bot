@@ -10,6 +10,7 @@ selbst von GitHub.
 |---|---|
 | `/add <Link>` | Produkt überwachen (Link aus irgendeinem Shop) |
 | `/check <Link>` | Sofort nachschauen, ob verfügbar |
+| `/checkall` | Alle Produkte aus der Liste sofort prüfen |
 | `/list` | Alle überwachten Produkte |
 | `/remove <Nummer>` | Produkt entfernen (Nummer aus `/list`) |
 | `/shops` | Welche Shops funktionieren |
