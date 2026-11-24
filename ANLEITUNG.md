@@ -10,6 +10,7 @@ selbst von GitHub.
 |---|---|
 | `/add <Link>` | Produkt überwachen (Link aus irgendeinem Shop) |
 | `/check <Link>` | Sofort nachschauen, ob verfügbar |
+| `/test` | Probe-Ping: zeigt, wie der Alarm aussieht |
 | `/checkall` | Alle Produkte aus der Liste sofort prüfen |
 | `/list` | Alle überwachten Produkte |
 | `/remove <Nummer>` | Produkt entfernen (Nummer aus `/list`) |
@@ -19,7 +20,7 @@ selbst von GitHub.
 - **Funktioniert sicher:** MediaMarkt AT (unterscheidet MediaMarkt vs. teure Marktplatz-Händler), Alza, Boozt, Thalia
 - **Sollte gehen:** Saturn/MediaMarkt DE, kleine Kartenshops auf Shopify und alle Shops, die
   Google-Produktdaten (schema.org) in die Seite schreiben. Einfach `/check` mit dem Link probieren.
-- **Geht nicht (Bot-Schutz):** Pagro, Libro, Müller, Smyths, Conrad, Galaxus, Interspar, Kaufland, Amazon
+- **Geht nicht (Bot-Schutz):** Pagro, Libro, Müller, Smyths, Conrad, Galaxus, Interspar, Kaufland, Amazon, Pokémon Center
 
 Jeder Shop wird **für sich** gleichmäßig geprüft (max. 1 Anfrage alle 3 Sek. pro Shop),
 ein Shop bremst die anderen also nicht aus.

@@ -319,10 +319,34 @@ async def shops_cmd(interaction: discord.Interaction):
             "🟡 **Sollte gehen:** Saturn/MediaMarkt DE, kleine Kartenshops (Shopify) und andere "
             "Shops, die Google-Produktdaten in die Seite schreiben – einfach `/check` probieren.\n\n"
             "⛔ **Blocken Bots:** Pagro, Libro, Müller, Smyths, Conrad, Galaxus, Interspar, "
-            "Kaufland, Amazon"
+            "Kaufland, Amazon, Pokémon Center"
         ),
     )
     await interaction.response.send_message(embed=e)
+
+
+@bot.tree.command(name="test", description="Probe-Ping: zeigt, wie die Nachricht aussieht, wenn etwas verfügbar wird")
+async def test_cmd(interaction: discord.Interaction):
+    if not in_bot_channel(interaction):
+        return await wrong_channel(interaction)
+    async with bot.lock:
+        first = next(iter(bot.products.items()), None)
+    if first:
+        url, p = first
+        name = p.get("name", "Beispiel-Produkt")
+    else:
+        url, name = "https://www.mediamarkt.at/", "Beispiel-Produkt (noch nichts in der Liste)"
+    fake = checker.Result(
+        url=url, shop=checker.shop_name(url), name=name, price=None,
+        status_text="🧪 Nur ein Test – nicht wirklich verfügbar", buyable=True,
+    )
+    mention = "".join(f"<@{uid}> " for uid in PING_USER_IDS)
+    await interaction.response.send_message(
+        f"{mention}🧪 **TEST** – so sieht dein Ping aus, wenn etwas verfügbar wird:\n"
+        f"🚨 **Jetzt verfügbar!** {url}",
+        embed=make_embed(fake, "🟢 Jetzt bestellbar! (TEST)"),
+        allowed_mentions=discord.AllowedMentions(users=True),
+    )
 
 
 @bot.tree.command(name="checkall", description="Alle Produkte aus der Liste jetzt sofort prüfen")
